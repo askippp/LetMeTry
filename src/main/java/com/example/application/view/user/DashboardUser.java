@@ -38,6 +38,12 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         if (user == null) {
             event.forwardTo("login");
             Notification.show("Kamu Harus Login Terlebih dahulu!", 2000, TOP_CENTER);
+        } else if(user.getRole().equalsIgnoreCase("admin")) {
+            event.forwardTo("users");
+            Notification.show("Anda adalah Admin!", 2000, TOP_CENTER);
+        } else if(user.getStatus().equalsIgnoreCase("Tidak Diterima")) {
+            event.forwardTo("");
+            Notification.show("Akun anda tidak diterima!", 2000, TOP_CENTER);
         } else {
             buildLayout();
         }

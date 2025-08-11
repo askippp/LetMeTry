@@ -1,20 +1,23 @@
-package com.example.application.view.user.latsol.matematika;
+package com.example.application.view.user.tryout.easy;
 
 import com.example.application.components.Header;
-import com.example.application.components.SidebarMateri;
-import com.example.application.dao.LatihanSoalDAO;
-import com.example.application.model.LatihanSoalModel;
+import com.example.application.dao.TryOutEasyDAO;
+import com.example.application.model.TryOutEasyModel;
 import com.example.application.model.UsersModel;
-import com.example.application.view.user.materi.matematika.ModelMateriMtk;
-import com.example.application.view.user.materi.matematika.mtk10.DaftarMateriMtk10;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.html.*;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.H2;
+import com.vaadin.flow.component.html.H3;
+import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.dom.Style;
-import com.vaadin.flow.router.*;
+import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEnterObserver;
+import com.vaadin.flow.router.PageTitle;
+import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
 
 import java.sql.SQLException;
@@ -24,17 +27,15 @@ import java.util.stream.Collectors;
 
 import static com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER;
 
-@Route("latsol-mtk-10/:idMateri")
-@PageTitle("Latihan Soal Mtk 10")
-public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
+@Route("tryout-level1/matematika")
+@PageTitle("TryOut - Matematika")
+public class MatematikaEasy extends VerticalLayout implements BeforeEnterObserver {
 
     private VerticalLayout mainContent;
     private int currentNoSoal = 1;
-    private int idMateri;
-    private List<LatihanSoalModel> soalJawabanList;
-    private String materiJudul;
+    private List<TryOutEasyModel> model;
 
-    public LatsolMtk10() {}
+    public MatematikaEasy() {}
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
@@ -42,22 +43,16 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
         if (user == null) {
             event.forwardTo("login");
             Notification.show("Kamu Harus Login Terlebih dahulu!", 2000, TOP_CENTER);
-        } else if(user.getRole().equalsIgnoreCase("admin")) {
+        } else if (user.getRole().equalsIgnoreCase("admin")) {
             event.forwardTo("users");
             Notification.show("Anda adalah Admin!", 2000, TOP_CENTER);
-        } else if(user.getStatus().equalsIgnoreCase("Tidak Diterima")) {
+        } else if (user.getStatus().equalsIgnoreCase("Tidak Diterima")) {
             event.forwardTo("");
             Notification.show("Akun anda tidak diterima!", 2000, TOP_CENTER);
         } else {
             try {
-                idMateri = Integer.parseInt(event.getRouteParameters().get("idMateri").orElse("0"));
-                soalJawabanList = new LatihanSoalDAO().getSoalByIdMateri(idMateri);
-
-                materiJudul = DaftarMateriMtk10.getDaftarMateriMtk10().stream()
-                        .filter(m -> m.getIdMateri() == idMateri)
-                        .findFirst()
-                        .map(ModelMateriMtk::getJudul)
-                        .orElse(null);
+                int idMapel = 1;
+                model = new TryOutEasyDAO().getTryOutEasyByIdMapel(idMapel);
 
                 buildLayout();
             } catch (SQLException e) {
@@ -73,20 +68,13 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
         setSpacing(false);
         setSizeFull();
 
-        HorizontalLayout header = Header.headerWithBackButton("Matematika Kelas 10");
+        HorizontalLayout header = Header.headerWithLogo();
 
         HorizontalLayout mainLayout = new HorizontalLayout();
         mainLayout.setSizeFull();
         mainLayout.setPadding(false);
         mainLayout.setMargin(false);
         mainLayout.setSpacing(false);
-
-        VerticalLayout sidebar = SidebarMateri.createSidebarMateri(
-                1, "10", "mtk.png", null
-        );
-        sidebar.setHeightFull();
-        sidebar.getStyle()
-                .setOverflow(Style.Overflow.AUTO);
 
         mainContent = new VerticalLayout();
         mainContent.setHeightFull();
@@ -100,7 +88,7 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
                 .set("background-position", "center")
                 .set("background-repeat", "no-repeat");
 
-        H2 sectionTitle = new H2(materiJudul);
+        H2 sectionTitle = new H2("TRYOUT MATEMATIKA");
         sectionTitle.addClassName("lora-text");
         sectionTitle.getStyle()
                 .setFontWeight("bold")
@@ -110,9 +98,7 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
 
         displayQuestion(currentNoSoal);
 
-        mainLayout.add(sidebar, mainContent);
-        mainLayout.setFlexGrow(0, sidebar);
-        mainLayout.setFlexGrow(1, mainContent);
+        mainLayout.add(mainContent);
 
         add(header, mainLayout);
         setFlexGrow(0, header);
@@ -124,7 +110,7 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
             mainContent.remove(mainContent.getComponentAt(1));
         }
 
-        List<LatihanSoalModel> currentQuestion = soalJawabanList.stream()
+        List<TryOutEasyModel> currentQuestion = model.stream()
                 .filter(q -> q.getNoSoal() == questionNumber)
                 .toList();
 
@@ -176,8 +162,8 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
 
         Map<String, String> sortedAnswers = currentQuestion.stream()
                 .collect(Collectors.toMap(
-                        LatihanSoalModel::getOpsi,
-                        LatihanSoalModel::getTextJawaban,
+                        TryOutEasyModel::getOpsi,
+                        TryOutEasyModel::getTextJawaban,
                         (a, b) -> a,
                         java.util.TreeMap::new
                 ));
@@ -288,8 +274,8 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
     }
 
     private int getTotalQuestions() {
-        return soalJawabanList.stream()
-                .mapToInt(LatihanSoalModel::getNoSoal)
+        return model.stream()
+                .mapToInt(TryOutEasyModel::getNoSoal)
                 .max()
                 .orElse(0);
     }
