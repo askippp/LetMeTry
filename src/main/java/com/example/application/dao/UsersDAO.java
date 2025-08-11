@@ -36,6 +36,8 @@ public class UsersDAO {
             user.setUsername(rs.getString("username"));
             user.setRole(rs.getString("role"));
             user.setStatus(rs.getString("status"));
+            user.setLevel(rs.getInt("level"));
+            user.setLevel(rs.getInt("point"));
             user.setFoto(rs.getString("foto"));
         }
 

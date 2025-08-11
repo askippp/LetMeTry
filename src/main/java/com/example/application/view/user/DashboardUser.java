@@ -79,6 +79,13 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         createDrawerElements();
         add(overlay, drawer);
     }
+    // Tambahkan field untuk user model
+    private UsersModel currentUser; // Assuming you have access to current user
+
+    // Konstanta untuk minimum poin yang diperlukan
+    private static final int LEVEL_1_MIN_POINTS = 0;
+    private static final int LEVEL_2_MIN_POINTS = 200; // Sesuaikan dengan kebutuhan
+    private static final int LEVEL_3_MIN_POINTS = 500; // Sesuaikan dengan kebutuhan
 
     private void createDrawerElements() {
         // Create overlay
@@ -151,26 +158,45 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         });
 
         drawerHeader.add(title, closeButton);
-
         content.add(drawerHeader);
 
-        // Add levels
-        content.add(createLevelSection("Level 1", "60 menit", "tryout-level1"));
-        content.add(createLevelSection("Level 2", "50 menit", "tryout-level2"));
-        content.add(createLevelSection("Level 3", "45 menit", "tryout-level3"));
+        // Add user points info
+        if (currentUser != null) {
+            Div pointsInfo = new Div();
+            pointsInfo.setText("Point Anda: " + currentUser.getPoint());
+            pointsInfo.getStyle()
+                    .set("background-color", "#e0f2fe")
+                    .set("color", "#0277bd")
+                    .set("padding", "8px 12px")
+                    .set("border-radius", "6px")
+                    .set("text-align", "center")
+                    .set("font-weight", "500")
+                    .set("margin-bottom", "10px");
+            content.add(pointsInfo);
+        }
+
+        // Add levels with point requirements
+        content.add(createLevelSection("Level 1 (Easy)", "60 menit", "tryout-level1", LEVEL_1_MIN_POINTS));
+        content.add(createLevelSection("Level 2 (Medium)", "50 menit", "tryout-level2", LEVEL_2_MIN_POINTS));
+        content.add(createLevelSection("Level 3 (Hard)", "45 menit", "tryout-level3", LEVEL_3_MIN_POINTS));
 
         return content;
     }
 
-    private VerticalLayout createLevelSection(String levelName, String duration, String levelRoutePrefix) {
+    private VerticalLayout createLevelSection(String levelName, String duration, String levelRoutePrefix, int requiredPoints) {
         VerticalLayout levelSection = new VerticalLayout();
         levelSection.setPadding(true);
         levelSection.setSpacing(true);
+
+        // Check if user has enough points
+        boolean isUnlocked = currentUser != null && currentUser.getPoint() >= requiredPoints;
+
         levelSection.getStyle()
                 .set("border", "1px solid #e5e7eb")
                 .set("border-radius", "12px")
-                .set("background-color", "#f9fafb")
-                .set("margin-bottom", "10px");
+                .set("background-color", isUnlocked ? "#f9fafb" : "#f5f5f5")
+                .set("margin-bottom", "10px")
+                .set("opacity", isUnlocked ? "1" : "0.6");
 
         // Level header
         HorizontalLayout levelHeader = new HorizontalLayout();
@@ -178,21 +204,37 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         levelHeader.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
         levelHeader.setAlignItems(FlexComponent.Alignment.CENTER);
 
+        VerticalLayout titleSection = new VerticalLayout();
+        titleSection.setPadding(false);
+        titleSection.setSpacing(false);
+
         Span levelTitle = new Span(levelName);
         levelTitle.getStyle()
                 .set("font-weight", "bold")
                 .set("font-size", "1.1rem")
-                .set("color", "#374151");
+                .set("color", isUnlocked ? "#374151" : "#9ca3af");
+
+        titleSection.add(levelTitle);
+
+        // Add point requirement info if locked
+        if (!isUnlocked && requiredPoints > 0) {
+            Span pointRequirement = new Span("Butuh " + requiredPoints + " poin");
+            pointRequirement.getStyle()
+                    .set("font-size", "0.8rem")
+                    .set("color", "#ef4444")
+                    .set("font-weight", "500");
+            titleSection.add(pointRequirement);
+        }
 
         Span durationText = new Span(duration);
         durationText.getStyle()
                 .set("font-size", "0.9rem")
-                .set("color", "#6b7280")
-                .set("background-color", "#e5e7eb")
+                .set("color", isUnlocked ? "#6b7280" : "#9ca3af")
+                .set("background-color", isUnlocked ? "#e5e7eb" : "#d1d5db")
                 .set("padding", "4px 8px")
                 .set("border-radius", "6px");
 
-        levelHeader.add(levelTitle, durationText);
+        levelHeader.add(titleSection, durationText);
 
         // Subject buttons
         VerticalLayout subjectButtons = new VerticalLayout();
@@ -200,9 +242,9 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         subjectButtons.setSpacing(true);
         subjectButtons.setWidthFull();
 
-        Button mtkButton = createSubjectButton("Matematika", levelRoutePrefix + "/matematika");
-        Button ingButton = createSubjectButton("Bahasa Inggris", levelRoutePrefix + "/inggris");
-        Button indButton = createSubjectButton("Bahasa Indonesia", levelRoutePrefix + "/indonesia");
+        Button mtkButton = createSubjectButton("Matematika", levelRoutePrefix + "/matematika", isUnlocked);
+        Button ingButton = createSubjectButton("Bahasa Inggris", levelRoutePrefix + "/inggris", isUnlocked);
+        Button indButton = createSubjectButton("Bahasa Indonesia", levelRoutePrefix + "/indonesia", isUnlocked);
 
         subjectButtons.add(mtkButton, ingButton, indButton);
 
@@ -211,39 +253,82 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         return levelSection;
     }
 
-    private Button createSubjectButton(String text, String route) {
+    private Button createSubjectButton(String text, String route, boolean isEnabled) {
         Button button = new Button(text);
         button.setWidthFull();
-        button.getStyle()
-                .set("background-color", "white")
-                .set("border", "1px solid #d1d5db")
-                .set("border-radius", "8px")
-                .set("padding", "12px 16px")
-                .set("text-align", "left")
-                .set("cursor", "pointer")
-                .set("transition", "all 0.2s ease")
-                .set("font-weight", "500")
-                .set("color", "#374151");
+        button.setEnabled(isEnabled);
 
-        // Hover effect
-        button.getElement().setAttribute("onmouseover",
-                "this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#9ca3af';");
-        button.getElement().setAttribute("onmouseout",
-                "this.style.backgroundColor='white'; this.style.borderColor='#d1d5db';");
+        if (isEnabled) {
+            // Enabled button style
+            button.getStyle()
+                    .set("background-color", "white")
+                    .set("border", "1px solid #d1d5db")
+                    .set("border-radius", "8px")
+                    .set("padding", "12px 16px")
+                    .set("text-align", "left")
+                    .set("cursor", "pointer")
+                    .set("transition", "all 0.2s ease")
+                    .set("font-weight", "500")
+                    .set("color", "#374151");
 
-        button.addClickListener(e -> {
-            closeDrawer();
-            // Small delay to ensure drawer closes before navigation
-            UI.getCurrent().getPage().executeJs(
-                    "setTimeout(() => { window.location.href = '" + route + "'; }, 100);"
-            );
-        });
+            // Hover effect for enabled buttons
+            button.getElement().setAttribute("onmouseover",
+                    "this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#9ca3af';");
+            button.getElement().setAttribute("onmouseout",
+                    "this.style.backgroundColor='white'; this.style.borderColor='#d1d5db';");
+
+            button.addClickListener(e -> {
+                closeDrawer();
+                // Small delay to ensure drawer closes before navigation
+                UI.getCurrent().getPage().executeJs(
+                        "setTimeout(() => { window.location.href = '" + route + "'; }, 100);"
+                );
+            });
+        } else {
+            // Disabled button style
+            button.getStyle()
+                    .set("background-color", "#f5f5f5")
+                    .set("border", "1px solid #d1d5db")
+                    .set("border-radius", "8px")
+                    .set("padding", "12px 16px")
+                    .set("text-align", "left")
+                    .set("cursor", "not-allowed")
+                    .set("font-weight", "500")
+                    .set("color", "#9ca3af")
+                    .set("opacity", "0.6");
+
+            // Add lock icon or indicator
+            button.setText("🔒 " + text);
+
+            // Optional: Show notification when clicked
+            button.addClickListener(e -> {
+                Notification.show("Level ini belum terbuka. Kumpulkan lebih banyak poin!", 3000, Notification.Position.MIDDLE);
+            });
+        }
 
         return button;
     }
 
+    // Method untuk update drawer content ketika poin user berubah
+    public void refreshDrawerContent() {
+        if (drawer != null) {
+            drawer.removeAll();
+            VerticalLayout newContent = createDrawerContent();
+            drawer.add(newContent);
+        }
+    }
+
+    // Setter untuk current user
+    public void setCurrentUser(UsersModel user) {
+        this.currentUser = user;
+        refreshDrawerContent(); // Refresh content when user changes
+    }
+
     private void openDrawer() {
         if (!isDrawerOpen) {
+            // Refresh content before opening to ensure latest user data
+            refreshDrawerContent();
+
             isDrawerOpen = true;
             overlay.getStyle()
                     .set("visibility", "visible")

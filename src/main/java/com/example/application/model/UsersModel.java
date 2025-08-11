@@ -7,6 +7,8 @@ public class UsersModel {
     private String username;
     private String role;
     private String status;
+    private int level;
+    private int point;
     private String foto;
 
     public UsersModel() {}
@@ -58,6 +60,14 @@ public class UsersModel {
     public void setStatus(String status) {
         this.status = status;
     }
+
+    public int getLevel() { return level; }
+
+    public void setLevel(int level) { this.level = level; }
+
+    public int getPoint() { return point; }
+
+    public void setPoint(int point) { this.point = point; }
 
     public String getFoto() {
         return foto;
