@@ -7,6 +7,7 @@ import com.example.application.model.LatihanSoalModel;
 import com.example.application.model.UsersModel;
 import com.example.application.view.user.materi.matematika.ModelMateriMtk;
 import com.example.application.view.user.materi.matematika.mtk10.DaftarMateriMtk10;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.notification.Notification;
@@ -16,12 +17,19 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.dom.Style;
 import com.vaadin.flow.router.*;
 import com.vaadin.flow.server.VaadinSession;
+import org.aspectj.weaver.ast.Not;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.example.application.connection.Koneksi.getConnection;
+import static com.vaadin.flow.component.notification.Notification.Position.MIDDLE;
 import static com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER;
 
 @Route("latsol-mtk-10/:idMateri")
@@ -31,6 +39,8 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
     private VerticalLayout mainContent;
     private int currentNoSoal = 1;
     private int idMateri;
+    private int idLatsol;
+    private Map<Integer, Integer> jawabanUser;
     private List<LatihanSoalModel> soalJawabanList;
     private String materiJudul;
 
@@ -52,6 +62,10 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
             try {
                 idMateri = Integer.parseInt(event.getRouteParameters().get("idMateri").orElse("0"));
                 soalJawabanList = new LatihanSoalDAO().getSoalByIdMateri(idMateri);
+                jawabanUser = new HashMap<>();
+
+                UsersModel usersModel = VaadinSession.getCurrent().getAttribute(UsersModel.class);
+                idLatsol = new LatihanSoalDAO().startLatihan(usersModel.getIdUsers(), idMateri);
 
                 materiJudul = DaftarMateriMtk10.getDaftarMateriMtk10().stream()
                         .filter(m -> m.getIdMateri() == idMateri)
@@ -201,8 +215,30 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
             answerButton.setText(option + ". " + answer);
             answerButton.addClassName("lora-text");
 
+            int idJawaban = currentQuestion.stream()
+                    .filter(q -> q.getOpsi().equalsIgnoreCase(option))
+                    .findFirst()
+                    .map(LatihanSoalModel::getIdJawaban)
+                    .orElse(-1);
+
             answerButton.addClickListener(e -> {
-                System.out.println("Jawaban dipilih: " + option);
+                jawabanUser.put(currentQuestion.getFirst().getIdSoalLatsol(), idJawaban);
+
+                try {
+                    new LatihanSoalDAO().saveJawaban(
+                            idLatsol, currentQuestion.getFirst().getIdSoalLatsol(), idJawaban
+                    );
+
+                    boolean isCorrect = new LatihanSoalDAO().isJawabanBenar(idJawaban);
+                    if (isCorrect) {
+                        Notification.show("Jawaban anda benar!", 1000, MIDDLE);
+                    } else {
+                        Notification.show("Jawaban anda salah!", 1000, MIDDLE);
+                    }
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                    Notification.show("Gagal menyimpan jawaban", 2000, TOP_CENTER);
+                }
             });
 
             answersLayout.add(answerButton);
@@ -276,7 +312,14 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
                     .setBoxShadow("0 4px 8px rgba(17, 139, 80, 0.3)");
 
             submitButton.addClickListener(e -> {
-                Notification.show("Latihan soal selesai", 2000, Notification.Position.TOP_CENTER);
+                try {
+                    new LatihanSoalDAO().updateNilaiLatihan(idLatsol);
+                    double nilaiAkhir = getNilaiAkhir();
+                    Notification.show("Latihan selesai! Nilai Anda: " + nilaiAkhir, 3000, MIDDLE);
+                    UI.getCurrent().navigate("materi-mtk-10");
+                } catch (SQLException exception) {
+                    exception.printStackTrace();
+                }
             });
 
             rightContainer.add(submitButton);
@@ -285,6 +328,20 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
         contentLayout.add(leftContainer, rightContainer);
         mainContainer.add(contentLayout);
         mainContent.add(mainContainer);
+    }
+
+    private double getNilaiAkhir() throws SQLException {
+        Connection conn = getConnection();
+        String sql = "SELECT nilai FROM latihan_soal WHERE id_latsol = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, idLatsol);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("nilai");
+                }
+            }
+        }
+        return 0;
     }
 
     private int getTotalQuestions() {

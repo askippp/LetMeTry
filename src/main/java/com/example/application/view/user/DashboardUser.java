@@ -79,11 +79,9 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         createDrawerElements();
         add(overlay, drawer);
     }
-    // Tambahkan field untuk user model
-    private UsersModel currentUser; // Assuming you have access to current user
+    UsersModel currentUser = VaadinSession.getCurrent().getAttribute(UsersModel.class);
 
     // Konstanta untuk minimum poin yang diperlukan
-    private static final int LEVEL_1_MIN_POINTS = 0;
     private static final int LEVEL_2_MIN_POINTS = 200; // Sesuaikan dengan kebutuhan
     private static final int LEVEL_3_MIN_POINTS = 500; // Sesuaikan dengan kebutuhan
 
@@ -176,9 +174,15 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         }
 
         // Add levels with point requirements
-        content.add(createLevelSection("Level 1 (Easy)", "60 menit", "tryout-level1", LEVEL_1_MIN_POINTS));
-        content.add(createLevelSection("Level 2 (Medium)", "50 menit", "tryout-level2", LEVEL_2_MIN_POINTS));
-        content.add(createLevelSection("Level 3 (Hard)", "45 menit", "tryout-level3", LEVEL_3_MIN_POINTS));
+        content.add(createLevelSection(
+                "Level 1 (Easy)", "60 menit", "tryout-level1", 0)
+        );
+        content.add(createLevelSection(
+                "Level 2 (Medium)", "50 menit", "tryout-level2", LEVEL_2_MIN_POINTS)
+        );
+        content.add(createLevelSection(
+                "Level 3 (Hard)", "45 menit", "tryout-level3", LEVEL_3_MIN_POINTS)
+        );
 
         return content;
     }
@@ -217,7 +221,7 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         titleSection.add(levelTitle);
 
         // Add point requirement info if locked
-        if (!isUnlocked && requiredPoints > 0) {
+        if (!isUnlocked && requiredPoints >= 0) {
             Span pointRequirement = new Span("Butuh " + requiredPoints + " poin");
             pointRequirement.getStyle()
                     .set("font-size", "0.8rem")
@@ -242,9 +246,15 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         subjectButtons.setSpacing(true);
         subjectButtons.setWidthFull();
 
-        Button mtkButton = createSubjectButton("Matematika", levelRoutePrefix + "/matematika", isUnlocked);
-        Button ingButton = createSubjectButton("Bahasa Inggris", levelRoutePrefix + "/inggris", isUnlocked);
-        Button indButton = createSubjectButton("Bahasa Indonesia", levelRoutePrefix + "/indonesia", isUnlocked);
+        Button mtkButton = createSubjectButton(
+                "Matematika", levelRoutePrefix + "/matematika", isUnlocked
+        );
+        Button ingButton = createSubjectButton(
+                "Bahasa Inggris", levelRoutePrefix + "/inggris", isUnlocked
+        );
+        Button indButton = createSubjectButton(
+                "Bahasa Indonesia", levelRoutePrefix + "/indonesia", isUnlocked
+        );
 
         subjectButtons.add(mtkButton, ingButton, indButton);
 
