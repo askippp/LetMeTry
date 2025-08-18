@@ -34,11 +34,9 @@ public class ClockView extends HorizontalLayout {
                         .setAlignItems(Style.AlignItems.CENTER);
         clockSection.add(clockImage, clockLabel);
 
-        // Set initial time immediately
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
         clockLabel.setText(LocalTime.now().format(formatter));
 
-        // Menambahkan komponen langsung ke layout
         add(clockSection);
     }
 

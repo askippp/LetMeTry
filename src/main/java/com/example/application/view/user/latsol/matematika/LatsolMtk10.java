@@ -11,6 +11,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -231,13 +232,37 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
 
                     boolean isCorrect = new LatihanSoalDAO().isJawabanBenar(idJawaban);
                     if (isCorrect) {
-                        Notification.show("Jawaban anda benar!", 1000, MIDDLE);
+                        Notification
+                                .show("Jawaban anda benar!", 1000, MIDDLE)
+                                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
                     } else {
-                        Notification.show("Jawaban anda salah!", 1000, MIDDLE);
+                        Notification
+                                .show("Jawaban anda salah!", 1000, MIDDLE)
+                                .addThemeVariants(NotificationVariant.LUMO_ERROR);
                     }
+
+                    UI ui = UI.getCurrent();
+                    ui.access(() -> {
+                        new Thread(() -> {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException ex) {
+                                ex.printStackTrace();
+                            }
+
+                            ui.access(() -> {
+                               if (currentNoSoal < getTotalQuestions()) {
+                                   currentNoSoal++;
+                                   displayQuestion(currentNoSoal);
+                               }
+                            });
+                        }).start();
+                    });
                 } catch (SQLException ex) {
                     ex.printStackTrace();
-                    Notification.show("Gagal menyimpan jawaban", 2000, TOP_CENTER);
+                    Notification
+                            .show("Gagal menyimpan jawaban", 2000, TOP_CENTER)
+                            .addThemeVariants(NotificationVariant.LUMO_WARNING);
                 }
             });
 
@@ -277,15 +302,8 @@ public class LatsolMtk10 extends VerticalLayout implements BeforeEnterObserver {
                     .setFontSize("18px")
                     .setBorder("none")
                     .setBorderRadius("15px")
-                    .setCursor("pointer")
                     .setMargin("0")
                     .setBoxSizing(Style.BoxSizing.BORDER_BOX);
-
-            int finalI = i;
-            indicator.addClickListener(e -> {
-                currentNoSoal = finalI;
-                displayQuestion(finalI);
-            });
 
             questionIndicators.add(indicator);
         }

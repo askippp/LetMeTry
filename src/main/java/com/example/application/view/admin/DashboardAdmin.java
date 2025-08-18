@@ -151,7 +151,7 @@ public class DashboardAdmin extends VerticalLayout implements BeforeEnterObserve
                 .setBoxShadow("0 4px 12px rgba(0,0,0,0.2)")
                 .set("border-radius", "20px");
 
-        H3 sectionTitle = new H3("Users - Tidak Diterima");
+        H3 sectionTitle = new H3("Users - Diterima");
         sectionTitle.addClassName("lora-text");
         sectionTitle.getStyle()
                 .setColor("#2e7d32")

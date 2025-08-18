@@ -1,15 +1,19 @@
 package com.example.application.view.user.tryout.easy;
 
 import com.example.application.components.Header;
+import com.example.application.components.Timer;
 import com.example.application.dao.TryOutEasyDAO;
 import com.example.application.model.TryOutEasyModel;
 import com.example.application.model.UsersModel;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.dom.Style;
@@ -20,10 +24,12 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
 
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.vaadin.flow.component.notification.Notification.Position.MIDDLE;
 import static com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER;
 
 @Route("tryout-level1/indonesia")
@@ -32,7 +38,10 @@ public class IndonesiaEasy extends VerticalLayout implements BeforeEnterObserver
 
     private VerticalLayout mainContent;
     private int currentNoSoal = 1;
+    private int idToEasy;
+    private Map<Integer, Integer> jawabanUser;
     private List<TryOutEasyModel> model;
+    private Timer countdown;
 
     public IndonesiaEasy() {}
 
@@ -52,6 +61,10 @@ public class IndonesiaEasy extends VerticalLayout implements BeforeEnterObserver
             try {
                 int idMapel = 3;
                 model = new TryOutEasyDAO().getTryOutEasyByIdMapel(idMapel);
+                jawabanUser = new HashMap<>();
+
+                UsersModel usersModel = VaadinSession.getCurrent().getAttribute(UsersModel.class);
+                idToEasy = new TryOutEasyDAO().startTryOut(usersModel.getIdUsers(), idMapel);
 
                 buildLayout();
             } catch (SQLException e) {
@@ -130,7 +143,7 @@ public class IndonesiaEasy extends VerticalLayout implements BeforeEnterObserver
         contentLayout.setWidthFull();
         contentLayout.setSpacing(true);
         contentLayout.setPadding(false);
-        contentLayout.setAlignItems(Alignment.START);
+        contentLayout.setAlignItems(FlexComponent.Alignment.START);
 
         VerticalLayout leftContainer = new VerticalLayout();
         leftContainer.setSpacing(true);
@@ -186,8 +199,54 @@ public class IndonesiaEasy extends VerticalLayout implements BeforeEnterObserver
             answerButton.setText(option + ". " + answer);
             answerButton.addClassName("lora-text");
 
+            int idJawabanToEasy = currentQuestion.stream()
+                    .filter(q -> q.getOpsi().equalsIgnoreCase(option))
+                    .findFirst()
+                    .map(TryOutEasyModel::getIdJawabanToEasy)
+                    .orElse(-1);
+
             answerButton.addClickListener(e -> {
-                System.out.println("Jawaban dipilih: " + option);
+                jawabanUser.put(currentQuestion.getFirst().getIdSoalToEasy(), idJawabanToEasy);
+
+                try {
+                    new TryOutEasyDAO().saveJawaban(
+                            idToEasy, currentQuestion.getFirst().getIdSoalToEasy(), idJawabanToEasy
+                    );
+
+                    boolean isCorrect = new TryOutEasyDAO().isJawabanBenar(idJawabanToEasy);
+                    if (isCorrect) {
+                        Notification
+                                .show("Jawaban anda benar!", 1000, MIDDLE)
+                                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                    } else {
+                        Notification
+                                .show("Jawaban anda salah!", 1000, MIDDLE)
+                                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                    }
+
+                    UI ui = UI.getCurrent();
+                    ui.access(() -> {
+                        new Thread(() -> {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException ex) {
+                                ex.printStackTrace();
+                            }
+
+                            ui.access(() -> {
+                                if (currentNoSoal < getTotalQuestions()) {
+                                    currentNoSoal++;
+                                    displayQuestion(currentNoSoal);
+                                }
+                            });
+                        }).start();
+                    });
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                    Notification
+                            .show("Gagal menyimpan jawaban", 2000, TOP_CENTER)
+                            .addThemeVariants(NotificationVariant.LUMO_WARNING);
+                }
             });
 
             answersLayout.add(answerButton);
@@ -200,7 +259,26 @@ public class IndonesiaEasy extends VerticalLayout implements BeforeEnterObserver
         rightContainer.setHeightFull();
         rightContainer.setSpacing(false);
         rightContainer.setPadding(false);
-        rightContainer.setAlignItems(Alignment.CENTER);
+        rightContainer.setAlignItems(FlexComponent.Alignment.CENTER);
+
+        if (countdown == null) {
+            countdown = new Timer(3600);
+            countdown.setOnTimeUpCallback(() -> {
+                UI.getCurrent().access(() -> {
+                    handleSubmit();
+                });
+            });
+        }
+
+        countdown.setJustifyContentMode(FlexComponent.JustifyContentMode.CENTER);
+        countdown.setAlignItems(FlexComponent.Alignment.CENTER);
+        countdown.getStyle()
+                .setBackgroundColor("#f9fafb")
+                .setMarginTop("-20px")
+                .setBorderRadius("20px")
+                .setPaddingLeft("10px")
+                .setPaddingRight("15px")
+                .setBorder("2px solid #d1d5db");
 
         Div questionIndicators = new Div();
         questionIndicators.getStyle()
@@ -226,7 +304,6 @@ public class IndonesiaEasy extends VerticalLayout implements BeforeEnterObserver
                     .setFontSize("18px")
                     .setBorder("none")
                     .setBorderRadius("15px")
-                    .setCursor("pointer")
                     .setMargin("0")
                     .setBoxSizing(Style.BoxSizing.BORDER_BOX);
 
@@ -239,7 +316,7 @@ public class IndonesiaEasy extends VerticalLayout implements BeforeEnterObserver
             questionIndicators.add(indicator);
         }
 
-        rightContainer.add(questionIndicators);
+        rightContainer.add(countdown, questionIndicators);
 
         Div spacer = new Div();
         spacer.getStyle().setFlexGrow("1");
@@ -260,9 +337,7 @@ public class IndonesiaEasy extends VerticalLayout implements BeforeEnterObserver
                     .setMarginTop("20px")
                     .setBoxShadow("0 4px 8px rgba(17, 139, 80, 0.3)");
 
-            submitButton.addClickListener(e -> {
-                Notification.show("Latihan soal selesai", 2000, Notification.Position.TOP_CENTER);
-            });
+            submitButton.addClickListener(e -> handleSubmit());
 
             rightContainer.add(submitButton);
         }
@@ -270,6 +345,22 @@ public class IndonesiaEasy extends VerticalLayout implements BeforeEnterObserver
         contentLayout.add(leftContainer, rightContainer);
         mainContainer.add(contentLayout);
         mainContent.add(mainContainer);
+    }
+
+    private void handleSubmit() {
+        try {
+            int waktuPengerjaan = countdown.getElapsedSeconds();
+            new TryOutEasyDAO().finishTryOut(idToEasy, waktuPengerjaan);
+
+            Notification.show("TryOut berhasil diselesaikan!", 2000, MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+
+            UI.getCurrent().navigate("hasil-tryout/" + idToEasy);
+        } catch (SQLException exception) {
+            exception.printStackTrace();
+            Notification.show("Terjadi kesalahan saat menyimpan hasil", 3000, TOP_CENTER)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+        }
     }
 
     private int getTotalQuestions() {

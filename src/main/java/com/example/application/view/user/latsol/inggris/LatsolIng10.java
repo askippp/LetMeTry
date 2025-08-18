@@ -9,12 +9,14 @@ import com.example.application.view.user.materi.inggris.ModelMateriIng;
 import com.example.application.view.user.materi.inggris.ing10.DaftarMateriIng10;
 import com.example.application.view.user.materi.matematika.ModelMateriMtk;
 import com.example.application.view.user.materi.matematika.mtk10.DaftarMateriMtk10;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.dom.Style;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.vaadin.flow.component.notification.Notification.Position.MIDDLE;
 import static com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER;
 
 @Route("latsol-ing-10/:idMateri")
@@ -38,6 +41,8 @@ public class LatsolIng10 extends VerticalLayout implements BeforeEnterObserver {
     private VerticalLayout mainContent;
     private int currentNoSoal = 1;
     private int idMateri;
+    private int idLatsol;
+    private Map<Integer, Integer> jawabanUser;
     private List<LatihanSoalModel> soalJawabanList;
     private String materiJudul;
 
@@ -202,8 +207,54 @@ public class LatsolIng10 extends VerticalLayout implements BeforeEnterObserver {
             answerButton.setText(option + ". " + answer);
             answerButton.addClassName("lora-text");
 
+            int idJawaban = currentQuestion.stream()
+                    .filter(q -> q.getOpsi().equalsIgnoreCase(option))
+                    .findFirst()
+                    .map(LatihanSoalModel::getIdJawaban)
+                    .orElse(-1);
+
             answerButton.addClickListener(e -> {
-                System.out.println("Jawaban dipilih: " + option);
+                jawabanUser.put(currentQuestion.getFirst().getIdSoalLatsol(), idJawaban);
+
+                try {
+                    new LatihanSoalDAO().saveJawaban(
+                            idLatsol, currentQuestion.getFirst().getIdSoalLatsol(), idJawaban
+                    );
+
+                    boolean isCorrect = new LatihanSoalDAO().isJawabanBenar(idJawaban);
+                    if (isCorrect) {
+                        Notification
+                                .show("Jawaban anda benar!", 1000, MIDDLE)
+                                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                    } else {
+                        Notification
+                                .show("Jawaban anda salah!", 1000, MIDDLE)
+                                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                    }
+
+                    UI ui = UI.getCurrent();
+                    ui.access(() -> {
+                        new Thread(() -> {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException ex) {
+                                ex.printStackTrace();
+                            }
+
+                            ui.access(() -> {
+                                if (currentNoSoal < getTotalQuestions()) {
+                                    currentNoSoal++;
+                                    displayQuestion(currentNoSoal);
+                                }
+                            });
+                        }).start();
+                    });
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                    Notification
+                            .show("Gagal menyimpan jawaban", 2000, TOP_CENTER)
+                            .addThemeVariants(NotificationVariant.LUMO_WARNING);
+                }
             });
 
             answersLayout.add(answerButton);

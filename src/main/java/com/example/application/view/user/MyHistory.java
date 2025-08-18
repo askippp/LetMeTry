@@ -2,12 +2,13 @@ package com.example.application.view.user;
 
 import com.example.application.components.Header;
 import com.example.application.components.SidebarUser;
+import com.example.application.dao.HistoryDAO;
+import com.example.application.model.HistoryModel;
 import com.example.application.model.UsersModel;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -17,11 +18,22 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
 
+import java.sql.SQLException;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+
 import static com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER;
 
 @Route("my-history")
 @PageTitle("My - History")
 public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
+
+    private String currentSubject = "MTK";
+    private int currentIdMapel = 1; // Default MTK
+    private VerticalLayout tableContainer;
+    private UsersModel currentUser;
 
     public MyHistory() {}
 
@@ -32,6 +44,7 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
             event.forwardTo("login");
             Notification.show("Kamu Harus Login Terlebih dahulu!", 2000, TOP_CENTER);
         } else {
+            this.currentUser = user;
             buildLayout();
         }
     }
@@ -70,7 +83,7 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         content.getStyle().set("background-color", "#f8f9fa");
 
         // Title
-        H2 title = new H2("Pelajaran");
+        H2 title = new H2("Riwayat Pelajaran");
         title.getStyle().set("margin", "0 0 20px 0");
         title.getStyle().set("color", "#2d5a27");
         title.getStyle().set("font-weight", "bold");
@@ -84,12 +97,12 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         // Left side - Subject buttons
         VerticalLayout leftSection = createSubjectButtons();
 
-        // Right side - Table with Vaadin components
-        VerticalLayout tableSection = createTableWithButtons();
+        // Right side - Table with database data
+        tableContainer = createTableWithDatabaseData();
 
-        mainSection.add(leftSection, tableSection);
+        mainSection.add(leftSection, tableContainer);
         mainSection.setFlexGrow(0, leftSection);
-        mainSection.setFlexGrow(1, tableSection);
+        mainSection.setFlexGrow(1, tableContainer);
 
         content.add(title, mainSection);
         content.setFlexGrow(0, title);
@@ -105,7 +118,7 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         leftSection.setWidth("200px");
         leftSection.getStyle().set("margin-right", "20px");
 
-        // MTK Button (Active)
+        // MTK Button (Active by default)
         Button mtkButton = new Button("MTK");
         styleActiveSubjectButton(mtkButton);
         mtkButton.setWidthFull();
@@ -115,15 +128,15 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         styleInactiveSubjectButton(biButton);
         biButton.setWidthFull();
 
-        // BE Button
+        // BE Button (Bahasa Inggris)
         Button beButton = new Button("BE");
         styleInactiveSubjectButton(beButton);
         beButton.setWidthFull();
 
         // Add click listeners
-        mtkButton.addClickListener(e -> switchSubject("MTK", mtkButton, biButton, beButton));
-        biButton.addClickListener(e -> switchSubject("BI", biButton, mtkButton, beButton));
-        beButton.addClickListener(e -> switchSubject("BE", beButton, mtkButton, biButton));
+        mtkButton.addClickListener(e -> switchSubject("MTK", 1, mtkButton, biButton, beButton));
+        biButton.addClickListener(e -> switchSubject("BI", 3, biButton, mtkButton, beButton));
+        beButton.addClickListener(e -> switchSubject("BE", 2, beButton, mtkButton, biButton));
 
         leftSection.add(mtkButton, biButton, beButton);
         return leftSection;
@@ -153,7 +166,7 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         button.getStyle().set("box-shadow", "0 2px 8px rgba(0, 0, 0, 0.1)");
     }
 
-    private void switchSubject(String subject, Button activeButton, Button... inactiveButtons) {
+    private void switchSubject(String subject, int idMapel, Button activeButton, Button... inactiveButtons) {
         // Reset all buttons to inactive
         for (Button button : inactiveButtons) {
             button.removeThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -164,10 +177,32 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         activeButton.removeThemeVariants(ButtonVariant.LUMO_TERTIARY);
         styleActiveSubjectButton(activeButton);
 
-        Notification.show("Switched to " + subject, 2000, TOP_CENTER);
+        // Update current subject and reload data
+        this.currentSubject = subject;
+        this.currentIdMapel = idMapel;
+
+        // Refresh table with new data
+        refreshTableData();
     }
 
-    private VerticalLayout createTableWithButtons() {
+    private void refreshTableData() {
+        if (tableContainer != null) {
+            tableContainer.removeAll();
+            VerticalLayout newTable = createTableWithDatabaseData();
+
+            newTable.setSizeFull();
+            newTable.setPadding(false);
+            newTable.setSpacing(false);
+            newTable.getStyle().set("border", "3px solid #4CAF50");
+            newTable.getStyle().set("border-radius", "15px");
+            newTable.getStyle().set("overflow", "hidden");
+            newTable.getStyle().set("background", "white");
+
+            tableContainer.add(newTable);
+        }
+    }
+
+    private VerticalLayout createTableWithDatabaseData() {
         VerticalLayout tableContainer = new VerticalLayout();
         tableContainer.setSizeFull();
         tableContainer.setPadding(false);
@@ -193,7 +228,7 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
 
         headerRow.add(tanggalHeader, levelHeader, skorHeader, persentaseHeader);
 
-        // Data rows
+        // Data container
         VerticalLayout dataContainer = new VerticalLayout();
         dataContainer.setPadding(false);
         dataContainer.setMargin(false);
@@ -201,20 +236,88 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         dataContainer.setWidthFull();
         dataContainer.getStyle().set("flex", "1");
 
-        // Row 1
-        HorizontalLayout row1 = createDataRow("10/07/2025", "Easy", "80", 80, "10/07/2025", "Easy");
-        // Row 2
-        HorizontalLayout row2 = createDataRow("12/07/2025", "Easy", "100", 100, "12/07/2025", "Easy");
-        // Row 3
-        HorizontalLayout row3 = createDataRow("15/07/2025", "Medium", "75", 75, "15/07/2025", "Medium");
+        // Load data from database
+        try {
+            HistoryDAO historyDAO = new HistoryDAO();
+            List<HistoryModel> historyList = historyDAO.getHistoryByUserAndMapel(
+                    currentUser.getIdUsers(), currentIdMapel);
 
-        dataContainer.add(row1, row2, row3);
+            if (historyList.isEmpty()) {
+                // Show no data message
+                Div noDataRow = new Div();
+                noDataRow.setText("Belum ada riwayat tryout untuk mata pelajaran " + currentSubject);
+                noDataRow.getStyle().set("text-align", "center");
+                noDataRow.getStyle().set("padding", "40px");
+                noDataRow.getStyle().set("color", "#666");
+                noDataRow.getStyle().set("font-style", "italic");
+                dataContainer.add(noDataRow);
+            } else {
+                // Add data rows
+                for (HistoryModel history : historyList) {
+                    HorizontalLayout dataRow = createDataRowFromHistory(history);
+                    dataContainer.add(dataRow);
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            Div errorRow = new Div();
+            errorRow.setText("Gagal mengambil data riwayat");
+            errorRow.getStyle().set("text-align", "center");
+            errorRow.getStyle().set("padding", "40px");
+            errorRow.getStyle().set("color", "#f44336");
+            dataContainer.add(errorRow);
+        }
 
         tableContainer.add(headerRow, dataContainer);
         tableContainer.setFlexGrow(0, headerRow);
         tableContainer.setFlexGrow(1, dataContainer);
 
         return tableContainer;
+    }
+
+    private HorizontalLayout createDataRowFromHistory(HistoryModel history) {
+        HorizontalLayout row = new HorizontalLayout();
+        row.setWidthFull();
+        row.setHeight("70px");
+        row.setPadding(false);
+        row.setMargin(false);
+        row.setSpacing(false);
+        row.getStyle().set("border-bottom", "1px solid #e0e0e0");
+
+        // Format tanggal
+        String formattedDate = formatDate(history.getTanggal());
+
+        Div tanggalCell = createDataCell(formattedDate, false);
+        Div levelCell = createDataCell(history.getLevel(), false);
+        Div skorCell = createDataCell(String.valueOf(history.getNilai()), false);
+        Div persentaseCell = createPercentageButtonCell(
+                history.getPersentase(),
+                formattedDate,
+                history.getLevel(),
+                String.valueOf(history.getNilai()),
+                history.getIdTryout()
+        );
+
+        row.add(tanggalCell, levelCell, skorCell, persentaseCell);
+
+        return row;
+    }
+
+    private String formatDate(String dbDate) {
+        try {
+            // Assuming database returns date in format like "2025-07-10" or "2025-07-10 10:30:00"
+            if (dbDate != null && dbDate.length() >= 10) {
+                String datePart = dbDate.substring(0, 10); // Get YYYY-MM-DD part
+                String[] parts = datePart.split("-");
+                if (parts.length == 3) {
+                    return parts[2] + "/" + parts[1] + "/" + parts[0]; // DD/MM/YYYY
+                }
+            }
+            return dbDate;
+        } catch (Exception e) {
+            return dbDate;
+        }
     }
 
     private Div createHeaderCell(String text) {
@@ -234,25 +337,6 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         return cell;
     }
 
-    private HorizontalLayout createDataRow(String tanggal, String level, String skor, int percentage, String originalDate, String originalLevel) {
-        HorizontalLayout row = new HorizontalLayout();
-        row.setWidthFull();
-        row.setHeight("70px");
-        row.setPadding(false);
-        row.setMargin(false);
-        row.setSpacing(false);
-        row.getStyle().set("border-bottom", "1px solid #e0e0e0");
-
-        Div tanggalCell = createDataCell(tanggal, false);
-        Div levelCell = createDataCell(level, false);
-        Div skorCell = createDataCell(skor, false);
-        Div persentaseCell = createPercentageButtonCell(percentage, originalDate, originalLevel, skor);
-
-        row.add(tanggalCell, levelCell, skorCell, persentaseCell);
-
-        return row;
-    }
-
     private Div createDataCell(String text, boolean isLast) {
         Div cell = new Div();
         cell.setText(text);
@@ -269,7 +353,7 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         return cell;
     }
 
-    private Div createPercentageButtonCell(int percentage, String date, String level, String skor) {
+    private Div createPercentageButtonCell(int percentage, String date, String level, String skor, int idTryout) {
         Div cell = new Div();
         cell.getStyle().set("display", "flex");
         cell.getStyle().set("align-items", "center");
@@ -289,7 +373,6 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
         percentageButton.getStyle().set("position", "relative");
         percentageButton.getStyle().set("overflow", "hidden");
 
-        // Set background gradient based on percentage
         if (percentage >= 80) {
             percentageButton.getStyle().set("background", "linear-gradient(to right, #4CAF50 " + percentage + "%, #ff6b6b " + percentage + "%)");
             percentageButton.getStyle().set("color", "white");
@@ -300,11 +383,9 @@ public class MyHistory extends VerticalLayout implements BeforeEnterObserver {
 
         percentageButton.setText(percentage + "%");
 
-        // Add click listener
         percentageButton.addClickListener(e -> {
-            // Format parameter: subject-date-level-score-percentage
             String dateParam = date.replace("/", "_"); // Replace / with _ for URL safety
-            String parameter = "MTK-" + dateParam + "-" + level + "-" + skor + "-" + percentage;
+            String parameter = currentSubject + "-" + dateParam + "-" + level + "-" + skor + "-" + percentage + "-" + idTryout;
             percentageButton.getUI().ifPresent(ui -> ui.navigate("result-detail/" + parameter));
         });
 

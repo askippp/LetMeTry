@@ -4,6 +4,7 @@ import com.example.application.components.ClockView;
 import com.example.application.components.Header;
 import com.example.application.components.SidebarUser;
 import com.example.application.model.UsersModel;
+import com.example.application.dao.UsersDAO;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -20,6 +21,8 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
 
+import java.sql.SQLException;
+
 import static com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER;
 
 @Route("dashboard")
@@ -29,8 +32,14 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
     private Div overlay;
     private Div drawer;
     private boolean isDrawerOpen = false;
+    private UsersDAO userDAO;
 
-    public DashboardUser() {}
+    private static final int LEVEL_2_MIN_POINTS = 50;
+    private static final int LEVEL_3_MIN_POINTS = 100;
+
+    public DashboardUser() {
+        userDAO = new UsersDAO();
+    }
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
@@ -75,18 +84,11 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         setFlexGrow(0, header);
         setFlexGrow(1, mainLayout);
 
-        // Create overlay and drawer
         createDrawerElements();
         add(overlay, drawer);
     }
-    UsersModel currentUser = VaadinSession.getCurrent().getAttribute(UsersModel.class);
-
-    // Konstanta untuk minimum poin yang diperlukan
-    private static final int LEVEL_2_MIN_POINTS = 200; // Sesuaikan dengan kebutuhan
-    private static final int LEVEL_3_MIN_POINTS = 500; // Sesuaikan dengan kebutuhan
 
     private void createDrawerElements() {
-        // Create overlay
         overlay = new Div();
         overlay.getStyle()
                 .set("position", "fixed")
@@ -100,17 +102,13 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
                 .set("visibility", "hidden")
                 .set("transition", "all 0.3s ease");
 
-        // Close drawer when clicking overlay
-        overlay.addClickListener(e -> {
-            closeDrawer();
-        });
+        overlay.addClickListener(e -> closeDrawer());
 
-        // Create drawer
         drawer = new Div();
         drawer.getStyle()
                 .set("position", "fixed")
                 .set("top", "0")
-                .set("right", "-300px") // Initially hidden
+                .set("right", "-300px")
                 .set("width", "300px")
                 .set("height", "100vh")
                 .set("background-color", "white")
@@ -119,7 +117,6 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
                 .set("transition", "right 0.3s ease")
                 .set("overflow-y", "auto");
 
-        // Add drawer content
         VerticalLayout drawerContent = createDrawerContent();
         drawer.add(drawerContent);
     }
@@ -130,7 +127,6 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         content.setSpacing(true);
         content.setSizeFull();
 
-        // Header with close button
         HorizontalLayout drawerHeader = new HorizontalLayout();
         drawerHeader.setWidthFull();
         drawerHeader.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
@@ -151,14 +147,14 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
                 .set("height", "40px")
                 .set("color", "#6b7280");
 
-        closeButton.addClickListener(e -> {
-            closeDrawer();
-        });
+        closeButton.addClickListener(e -> closeDrawer());
 
         drawerHeader.add(title, closeButton);
         content.add(drawerHeader);
 
-        // Add user points info
+        // Get fresh user data from session and database
+        UsersModel currentUser = getCurrentUserWithLatestData();
+
         if (currentUser != null) {
             Div pointsInfo = new Div();
             pointsInfo.setText("Point Anda: " + currentUser.getPoint());
@@ -173,26 +169,45 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
             content.add(pointsInfo);
         }
 
-        // Add levels with point requirements
         content.add(createLevelSection(
-                "Level 1 (Easy)", "60 menit", "tryout-level1", 0)
+                "Level 1 (Easy)", "60 menit", "tryout-level1", 0, currentUser)
         );
         content.add(createLevelSection(
-                "Level 2 (Medium)", "50 menit", "tryout-level2", LEVEL_2_MIN_POINTS)
+                "Level 2 (Medium)", "50 menit", "tryout-level2", LEVEL_2_MIN_POINTS, currentUser)
         );
         content.add(createLevelSection(
-                "Level 3 (Hard)", "45 menit", "tryout-level3", LEVEL_3_MIN_POINTS)
+                "Level 3 (Hard)", "45 menit", "tryout-level3", LEVEL_3_MIN_POINTS, currentUser)
         );
 
         return content;
     }
 
-    private VerticalLayout createLevelSection(String levelName, String duration, String levelRoutePrefix, int requiredPoints) {
+    // Method untuk mendapatkan data user terbaru dari database
+    private UsersModel getCurrentUserWithLatestData() {
+        UsersModel sessionUser = VaadinSession.getCurrent().getAttribute(UsersModel.class);
+        if (sessionUser != null) {
+            try {
+                // Ambil data terbaru dari database
+                UsersModel latestUser = userDAO.getUserById(sessionUser.getIdUsers());
+                if (latestUser != null) {
+                    // Update session dengan data terbaru
+                    VaadinSession.getCurrent().setAttribute(UsersModel.class, latestUser);
+                    return latestUser;
+                }
+            } catch (SQLException e) {
+                System.err.println("Error getting latest user data: " + e.getMessage());
+                // Jika gagal ambil dari database, gunakan data session
+                return sessionUser;
+            }
+        }
+        return sessionUser;
+    }
+
+    private VerticalLayout createLevelSection(String levelName, String duration, String levelRoutePrefix, int requiredPoints, UsersModel currentUser) {
         VerticalLayout levelSection = new VerticalLayout();
         levelSection.setPadding(true);
         levelSection.setSpacing(true);
 
-        // Check if user has enough points
         boolean isUnlocked = currentUser != null && currentUser.getPoint() >= requiredPoints;
 
         levelSection.getStyle()
@@ -202,7 +217,6 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
                 .set("margin-bottom", "10px")
                 .set("opacity", isUnlocked ? "1" : "0.6");
 
-        // Level header
         HorizontalLayout levelHeader = new HorizontalLayout();
         levelHeader.setWidthFull();
         levelHeader.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
@@ -220,8 +234,7 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
 
         titleSection.add(levelTitle);
 
-        // Add point requirement info if locked
-        if (!isUnlocked && requiredPoints >= 0) {
+        if (!isUnlocked && requiredPoints > 0) {
             Span pointRequirement = new Span("Butuh " + requiredPoints + " poin");
             pointRequirement.getStyle()
                     .set("font-size", "0.8rem")
@@ -240,7 +253,6 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
 
         levelHeader.add(titleSection, durationText);
 
-        // Subject buttons
         VerticalLayout subjectButtons = new VerticalLayout();
         subjectButtons.setPadding(false);
         subjectButtons.setSpacing(true);
@@ -269,7 +281,6 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         button.setEnabled(isEnabled);
 
         if (isEnabled) {
-            // Enabled button style
             button.getStyle()
                     .set("background-color", "white")
                     .set("border", "1px solid #d1d5db")
@@ -281,7 +292,6 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
                     .set("font-weight", "500")
                     .set("color", "#374151");
 
-            // Hover effect for enabled buttons
             button.getElement().setAttribute("onmouseover",
                     "this.style.backgroundColor='#f3f4f6'; this.style.borderColor='#9ca3af';");
             button.getElement().setAttribute("onmouseout",
@@ -289,13 +299,11 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
 
             button.addClickListener(e -> {
                 closeDrawer();
-                // Small delay to ensure drawer closes before navigation
                 UI.getCurrent().getPage().executeJs(
                         "setTimeout(() => { window.location.href = '" + route + "'; }, 100);"
                 );
             });
         } else {
-            // Disabled button style
             button.getStyle()
                     .set("background-color", "#f5f5f5")
                     .set("border", "1px solid #d1d5db")
@@ -307,10 +315,8 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
                     .set("color", "#9ca3af")
                     .set("opacity", "0.6");
 
-            // Add lock icon or indicator
             button.setText("🔒 " + text);
 
-            // Optional: Show notification when clicked
             button.addClickListener(e -> {
                 Notification.show("Level ini belum terbuka. Kumpulkan lebih banyak poin!", 3000, Notification.Position.MIDDLE);
             });
@@ -319,7 +325,6 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         return button;
     }
 
-    // Method untuk update drawer content ketika poin user berubah
     public void refreshDrawerContent() {
         if (drawer != null) {
             drawer.removeAll();
@@ -328,17 +333,9 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
         }
     }
 
-    // Setter untuk current user
-    public void setCurrentUser(UsersModel user) {
-        this.currentUser = user;
-        refreshDrawerContent(); // Refresh content when user changes
-    }
-
     private void openDrawer() {
         if (!isDrawerOpen) {
-            // Refresh content before opening to ensure latest user data
             refreshDrawerContent();
-
             isDrawerOpen = true;
             overlay.getStyle()
                     .set("visibility", "visible")
@@ -353,7 +350,6 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
             overlay.getStyle().set("opacity", "0");
             drawer.getStyle().set("right", "-400px");
 
-            // Hide overlay after animation completes
             UI.getCurrent().getPage().executeJs(
                     "setTimeout(() => { " +
                             "if (arguments[0]) arguments[0].style.visibility = 'hidden'; " +
@@ -471,7 +467,6 @@ public class DashboardUser extends VerticalLayout implements BeforeEnterObserver
                 .setFontWeight("bold")
                 .setMarginRight("25px");
 
-        // Updated click listener to open drawer instead of dialog
         tryout.addClickListener(e -> openDrawer());
 
         Span instruksi = new Span("Pelajari Instruksi Pengerjaan →");

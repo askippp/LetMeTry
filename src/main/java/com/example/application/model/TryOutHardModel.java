@@ -11,8 +11,33 @@ public class TryOutHardModel {
     private String textJawaban;
     private String benar;
 
+    // === Tambahan dari tryout_hard ===
+    private int idToHard;
+    private int idUsers;
+    private String tanggal;
+    private String waktuPengerjaan;
+    private int nilai;
+    private String berhasil;
+
+    // === Tambahan dari detail_tryout_hard ===
+    private int idDetailToHard;
+    private int idJawabanDetail;
+    private int nilaiDetail;
+
+    // === Tambahan hasil perhitungan ===
+    private int totalSoal;
+    private int totalTerjawab;
+    private int jumlahBenar;
+    private int jumlahSalah;
+    private int jumlahKosong;
+
+    // === Tambahan dari join users/mapel ===
+    private String namaLengkap;
+    private String namaMapel;
+
     public TryOutHardModel() {}
 
+    // --- Getter & Setter lama ---
     public int getIdSoalToHard() {
         return idSoalToHard;
     }
@@ -53,7 +78,7 @@ public class TryOutHardModel {
         this.pertanyaan = pertanyaan;
     }
 
-    public int setIdJawabanToHard() {
+    public int getIdJawabanToHard() {
         return idJawabanToHard;
     }
 
@@ -83,5 +108,134 @@ public class TryOutHardModel {
 
     public void setBenar(String benar) {
         this.benar = benar;
+    }
+
+    // --- Getter & Setter tambahan baru ---
+    public int getIdToHard() {
+        return idToHard;
+    }
+
+    public void setIdToHard(int idToHard) {
+        this.idToHard = idToHard;
+    }
+
+    public int getIdUsers() {
+        return idUsers;
+    }
+
+    public void setIdUsers(int idUsers) {
+        this.idUsers = idUsers;
+    }
+
+    public String getTanggal() {
+        return tanggal;
+    }
+
+    public void setTanggal(String tanggal) {
+        this.tanggal = tanggal;
+    }
+
+    public String getWaktuPengerjaan() {
+        return waktuPengerjaan;
+    }
+
+    public void setWaktuPengerjaan(String waktuPengerjaan) {
+        this.waktuPengerjaan = waktuPengerjaan;
+    }
+
+    public int getNilai() {
+        return nilai;
+    }
+
+    public void setNilai(int nilai) {
+        this.nilai = nilai;
+    }
+
+    public String getBerhasil() {
+        return berhasil;
+    }
+
+    public void setBerhasil(String berhasil) {
+        this.berhasil = berhasil;
+    }
+
+    public int getIdDetailToHard() {
+        return idDetailToHard;
+    }
+
+    public void setIdDetailToHard(int idDetailToHard) {
+        this.idDetailToHard = idDetailToHard;
+    }
+
+    public int getIdJawabanDetail() {
+        return idJawabanDetail;
+    }
+
+    public void setIdJawabanDetail(int idJawabanDetail) {
+        this.idJawabanDetail = idJawabanDetail;
+    }
+
+    public int getNilaiDetail() {
+        return nilaiDetail;
+    }
+
+    public void setNilaiDetail(int nilaiDetail) {
+        this.nilaiDetail = nilaiDetail;
+    }
+
+    public int getTotalSoal() {
+        return totalSoal;
+    }
+
+    public void setTotalSoal(int totalSoal) {
+        this.totalSoal = totalSoal;
+    }
+
+    public int getTotalTerjawab() {
+        return totalTerjawab;
+    }
+
+    public void setTotalTerjawab(int totalTerjawab) {
+        this.totalTerjawab = totalTerjawab;
+    }
+
+    public int getJumlahBenar() {
+        return jumlahBenar;
+    }
+
+    public void setJumlahBenar(int jumlahBenar) {
+        this.jumlahBenar = jumlahBenar;
+    }
+
+    public int getJumlahSalah() {
+        return jumlahSalah;
+    }
+
+    public void setJumlahSalah(int jumlahSalah) {
+        this.jumlahSalah = jumlahSalah;
+    }
+
+    public int getJumlahKosong() {
+        return jumlahKosong;
+    }
+
+    public void setJumlahKosong(int jumlahKosong) {
+        this.jumlahKosong = jumlahKosong;
+    }
+
+    public String getNamaLengkap() {
+        return namaLengkap;
+    }
+
+    public void setNamaLengkap(String namaLengkap) {
+        this.namaLengkap = namaLengkap;
+    }
+
+    public String getNamaMapel() {
+        return namaMapel;
+    }
+
+    public void setNamaMapel(String namaMapel) {
+        this.namaMapel = namaMapel;
     }
 }

@@ -2,11 +2,11 @@ package com.example.application.view.user;
 
 import com.example.application.components.Header;
 import com.example.application.components.SidebarUser;
+import com.example.application.dao.HistoryDAO;
+import com.example.application.model.HistoryModel;
 import com.example.application.model.UsersModel;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -16,8 +16,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.*;
 import com.vaadin.flow.server.VaadinSession;
 
-import java.util.List;
-import java.util.Map;
+import java.sql.SQLException;
 
 import static com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER;
 
@@ -30,9 +29,8 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
     private String level;
     private int score;
     private int percentage;
-    private int totalQuestions;
-    private int correctAnswers;
-    private int wrongAnswers;
+    private int idTryout;
+    private HistoryModel historyData;
 
     public ResultDetailView() {}
 
@@ -50,33 +48,75 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
     @Override
     public void setParameter(BeforeEvent event, @OptionalParameter String parameter) {
         // Parse parameter untuk ambil data quiz
-        // Format: subject-date-level-score-percentage
+        // Format: subject-date-level-score-percentage-idTryout
         if (parameter != null && !parameter.isEmpty()) {
             String[] parts = parameter.split("-");
-            if (parts.length >= 5) {
+            if (parts.length >= 6) {
                 this.subject = parts[0];
                 this.date = parts[1].replace("_", "/");
                 this.level = parts[2];
                 this.score = Integer.parseInt(parts[3]);
                 this.percentage = Integer.parseInt(parts[4]);
+                this.idTryout = Integer.parseInt(parts[5]);
 
-                // Calculate questions based on score and percentage
-                this.totalQuestions = (int) Math.round((double) score * 100 / percentage);
-                this.correctAnswers = (int) Math.round((double) totalQuestions * percentage / 100);
-                this.wrongAnswers = totalQuestions - correctAnswers;
+                // Load data from database
+                loadHistoryData();
             }
         }
 
-        // Default values jika parameter tidak ada
-        if (this.subject == null) {
+        // Default values jika parameter tidak ada atau loading gagal
+        if (this.historyData == null) {
             this.subject = "MTK";
             this.date = "12/07/2025";
             this.level = "Easy";
             this.score = 80;
             this.percentage = 80;
-            this.totalQuestions = 30;
-            this.correctAnswers = 23;
-            this.wrongAnswers = 7;
+            this.idTryout = 1;
+
+            // Create dummy data for fallback
+            this.historyData = new HistoryModel();
+            this.historyData.setLevel(this.level);
+            this.historyData.setTanggal(this.date);
+            this.historyData.setNilai(this.score);
+            this.historyData.setPersentase(this.percentage);
+            this.historyData.setTotalSoal(30);
+            this.historyData.setJumlahBenar(24);
+            this.historyData.setJumlahSalah(6);
+            this.historyData.setNamaMapel("Matematika");
+        }
+    }
+
+    private void loadHistoryData() {
+        try {
+            HistoryDAO historyDAO = new HistoryDAO();
+            this.historyData = historyDAO.getDetailHistory(this.level, this.idTryout);
+
+            if (this.historyData != null) {
+                // Update local variables from database
+                this.subject = mapMapelNameToCode(this.historyData.getNamaMapel());
+                this.score = this.historyData.getNilai();
+                this.percentage = this.historyData.getPersentase();
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            Notification.show("Gagal mengambil data detail", 3000, TOP_CENTER);
+            this.historyData = null;
+        }
+    }
+
+    private String mapMapelNameToCode(String namaMapel) {
+        if (namaMapel == null) return "MTK";
+
+        switch (namaMapel.toLowerCase()) {
+            case "matematika":
+                return "MTK";
+            case "bahasa indonesia":
+                return "BI";
+            case "bahasa inggris":
+                return "BE";
+            default:
+                return "MTK";
         }
     }
 
@@ -85,7 +125,6 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         setMargin(false);
         setSpacing(false);
         setSizeFull();
-        // Set overflow hidden untuk main container
         getStyle().set("overflow", "hidden");
 
         HorizontalLayout header = Header.headerWithLogo();
@@ -95,17 +134,14 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         mainLayout.setPadding(false);
         mainLayout.setMargin(false);
         mainLayout.setSpacing(false);
-        // Set overflow hidden untuk main layout
         mainLayout.getStyle().set("overflow", "hidden");
 
         VerticalLayout sidebar = SidebarUser.createSidebar();
-        // Fix sidebar agar tidak bisa scroll dan tetap di posisi
         sidebar.getStyle().set("overflow", "hidden");
         sidebar.getStyle().set("position", "fixed");
-        sidebar.getStyle().set("height", "calc(100vh - 60px)"); // Adjust based on header height
+        sidebar.getStyle().set("height", "calc(100vh - 60px)");
         sidebar.getStyle().set("z-index", "1000");
 
-        // Create scrollable main content
         Div scrollableContent = createScrollableMainContent();
 
         mainLayout.add(sidebar, scrollableContent);
@@ -120,8 +156,7 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
     private Div createScrollableMainContent() {
         Div scrollableWrapper = new Div();
         scrollableWrapper.setSizeFull();
-        // Set margin-left untuk memberikan ruang untuk sidebar
-        scrollableWrapper.getStyle().set("margin-left", "250px"); // Adjust based on sidebar width
+        scrollableWrapper.getStyle().set("margin-left", "250px");
         scrollableWrapper.getStyle().set("overflow-y", "auto");
         scrollableWrapper.getStyle().set("overflow-x", "hidden");
         scrollableWrapper.getStyle().set("height", "100%");
@@ -139,11 +174,9 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         content.setWidthFull();
         content.getStyle().set("background-color", "#f8f9fa");
         content.getStyle().set("min-height", "100vh");
-        content.getStyle().set("padding-top", "20px"); // Menaikkan posisi content
+        content.getStyle().set("padding-top", "20px");
 
-        // Questions detail section (removed back button and title)
         VerticalLayout detailSection = createQuestionDetails();
-
         content.add(detailSection);
 
         return content;
@@ -155,31 +188,49 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         section.setSpacing(true);
         section.getStyle().set("margin-top", "30px");
 
-        H3 detailTitle = new H3("Rincian Soal");
-        detailTitle.getStyle().set("color", "#2d5a27");
-        detailTitle.getStyle().set("margin-bottom", "20px");
-
-        // Create containers for correct and wrong answers
         VerticalLayout questionsContainer = new VerticalLayout();
         questionsContainer.setPadding(false);
         questionsContainer.setSpacing(true);
         questionsContainer.getStyle().set("max-width", "900px");
 
         // Correct answers card
-        if (correctAnswers > 0) {
-            Div correctCard = createQuestionTypeCard("BENAR", "Soal Benar",
-                    "Try Out TKA Matematika", correctAnswers, "#4CAF50");
+        if (historyData.getJumlahBenar() > 0) {
+            Div correctCard = createQuestionTypeCard(
+                    "BENAR",
+                    "Soal Benar",
+                    "Try Out " + historyData.getNamaMapel() + " - " + historyData.getLevel(),
+                    historyData.getJumlahBenar(),
+                    "#4CAF50"
+            );
             questionsContainer.add(correctCard);
         }
 
         // Wrong answers card
-        if (wrongAnswers > 0) {
-            Div wrongCard = createQuestionTypeCard("SALAH", "Soal Salah",
-                    "Try Out TKA Matematika", wrongAnswers, "#f44336");
+        if (historyData.getJumlahSalah() > 0) {
+            Div wrongCard = createQuestionTypeCard(
+                    "SALAH",
+                    "Soal Salah",
+                    "Try Out " + historyData.getNamaMapel() + " - " + historyData.getLevel(),
+                    historyData.getJumlahSalah(),
+                    "#f44336"
+            );
             questionsContainer.add(wrongCard);
         }
 
-        section.add(detailTitle, questionsContainer);
+        // Empty/not answered card (if any)
+        int kosong = historyData.getTotalSoal() - historyData.getTotalTerjawab();
+        if (kosong > 0) {
+            Div emptyCard = createQuestionTypeCard(
+                    "KOSONG",
+                    "Soal Tidak Dijawab",
+                    "Try Out " + historyData.getNamaMapel() + " - " + historyData.getLevel(),
+                    kosong,
+                    "#ff9800"
+            );
+            questionsContainer.add(emptyCard);
+        }
+
+        section.add(questionsContainer);
         return section;
     }
 
@@ -197,7 +248,7 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         card.getStyle().set("width", "100%");
         card.getStyle().set("max-width", "900px");
 
-        // Status header bar (kotak panjang BENAR/SALAH)
+        // Status header bar
         Div statusHeader = new Div();
         statusHeader.setText(status);
         statusHeader.getStyle().set("background-color", color);
@@ -217,7 +268,7 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         mainContent.getStyle().set("padding", "20px");
         mainContent.getStyle().set("min-height", "100px");
 
-        // Left side - Number in outlined square box
+        // Left side - Number box
         Div numberContainer = new Div();
         numberContainer.getStyle().set("border", "1px solid #e0e0e0");
         numberContainer.getStyle().set("border-radius", "8px");
@@ -234,11 +285,10 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         numberText.getStyle().set("font-size", "32px");
         numberText.getStyle().set("font-weight", "bold");
         numberText.getStyle().set("color", "#333");
-        numberText.getStyle().set("line-height", "1");
 
         numberContainer.add(numberText);
 
-        // Middle section - Content
+        // Content section
         VerticalLayout contentSection = new VerticalLayout();
         contentSection.setPadding(false);
         contentSection.setMargin(false);
@@ -252,7 +302,6 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         titleDiv.getStyle().set("color", "#999");
         titleDiv.getStyle().set("font-size", "14px");
         titleDiv.getStyle().set("margin-bottom", "6px");
-        titleDiv.getStyle().set("font-weight", "400");
 
         Div subtitleDiv = new Div();
         subtitleDiv.setText(subtitle);
@@ -262,7 +311,7 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         subtitleDiv.getStyle().set("margin-bottom", "12px");
         subtitleDiv.getStyle().set("text-decoration", "underline");
 
-        // Info row with compact outlined buttons
+        // Info row with buttons
         HorizontalLayout infoRow = new HorizontalLayout();
         infoRow.setAlignItems(Alignment.CENTER);
         infoRow.setSpacing(true);
@@ -270,98 +319,20 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         infoRow.setMargin(false);
         infoRow.getStyle().set("gap", "8px");
 
-        // Date info as compact outlined button
-        Button dateButton = new Button();
-        dateButton.getStyle().set("background", "transparent");
-        dateButton.getStyle().set("border", "1px solid #e0e0e0");
-        dateButton.getStyle().set("border-radius", "6px");
-        dateButton.getStyle().set("padding", "6px 10px");
-        dateButton.getStyle().set("color", "#666");
-        dateButton.getStyle().set("font-size", "12px");
-        dateButton.getStyle().set("cursor", "default");
-        dateButton.getStyle().set("display", "flex");
-        dateButton.getStyle().set("align-items", "center");
-        dateButton.getStyle().set("gap", "4px");
+        // Date button
+        Button dateButton = createInfoButton(VaadinIcon.CALENDAR, formatDisplayDate(historyData.getTanggal()));
 
-        Icon calendarIcon = new Icon(VaadinIcon.CALENDAR);
-        calendarIcon.getStyle().set("color", "#4CAF50");
-        calendarIcon.getStyle().set("font-size", "14px");
+        // Time button - calculate from waktuPengerjaan
+        String timeText = calculateTimeFromSeconds(historyData.getWaktuPengerjaan());
+        Button timeButton = createInfoButton(VaadinIcon.CLOCK, timeText);
 
-        dateButton.setIcon(calendarIcon);
-        dateButton.setText(date);
-
-        // Time info as compact outlined button
-        Button timeButton = new Button();
-        timeButton.getStyle().set("background", "transparent");
-        timeButton.getStyle().set("border", "1px solid #e0e0e0");
-        timeButton.getStyle().set("border-radius", "6px");
-        timeButton.getStyle().set("padding", "6px 10px");
-        timeButton.getStyle().set("color", "#666");
-        timeButton.getStyle().set("font-size", "12px");
-        timeButton.getStyle().set("cursor", "default");
-        timeButton.getStyle().set("display", "flex");
-        timeButton.getStyle().set("align-items", "center");
-        timeButton.getStyle().set("gap", "4px");
-
-        Icon clockIcon = new Icon(VaadinIcon.CLOCK);
-        clockIcon.getStyle().set("color", "#4CAF50");
-        clockIcon.getStyle().set("font-size", "14px");
-
-        timeButton.setIcon(clockIcon);
-        timeButton.setText("07:00 WIB");
-
-        // Detail info as compact outlined button with arrow icons
-        Button detailButton = new Button();
-        detailButton.getStyle().set("background", "transparent");
-        detailButton.getStyle().set("border", "1px solid #e0e0e0");
-        detailButton.getStyle().set("border-radius", "6px");
-        detailButton.getStyle().set("padding", "6px 10px");
-        detailButton.getStyle().set("color", "#333");
-        detailButton.getStyle().set("font-size", "12px");
-        detailButton.getStyle().set("cursor", "pointer");
-        detailButton.getStyle().set("display", "flex");
-        detailButton.getStyle().set("align-items", "center");
-        detailButton.getStyle().set("gap", "4px");
-        detailButton.getStyle().set("font-weight", "500");
-
-        // Create content for detail button (text + arrows)
-        HorizontalLayout buttonContent = new HorizontalLayout();
-        buttonContent.setPadding(false);
-        buttonContent.setMargin(false);
-        buttonContent.setSpacing(false);
-        buttonContent.setAlignItems(Alignment.CENTER);
-        buttonContent.getStyle().set("gap", "4px");
-
-        Div detailText = new Div();
-        detailText.setText("Detail");
-
-        // Arrow icons inside the button
-        HorizontalLayout arrowGroup = new HorizontalLayout();
-        arrowGroup.setPadding(false);
-        arrowGroup.setMargin(false);
-        arrowGroup.setSpacing(false);
-        arrowGroup.getStyle().set("gap", "1px");
-
-        Icon arrow1 = new Icon(VaadinIcon.ANGLE_RIGHT);
-        Icon arrow2 = new Icon(VaadinIcon.ANGLE_RIGHT);
-        Icon arrow3 = new Icon(VaadinIcon.ANGLE_RIGHT);
-
-        arrow1.getStyle().set("color", "#4CAF50");
-        arrow2.getStyle().set("color", "#4CAF50");
-        arrow3.getStyle().set("color", "#4CAF50");
-
-        arrow1.getStyle().set("font-size", "14px");
-        arrow2.getStyle().set("font-size", "14px");
-        arrow3.getStyle().set("font-size", "14px");
-
-        arrowGroup.add(arrow1, arrow2, arrow3);
-        buttonContent.add(detailText, arrowGroup);
-
-        detailButton.getElement().removeAllChildren();
-        detailButton.getElement().appendChild(buttonContent.getElement());
+        // Detail button
+        Button detailButton = createDetailButton();
+        detailButton.addClickListener(e -> {
+            Notification.show("Detail " + title + " - " + count + " soal", 2000, TOP_CENTER);
+        });
 
         infoRow.add(dateButton, timeButton, detailButton);
-
         contentSection.add(titleDiv, subtitleDiv, infoRow);
 
         mainContent.add(numberContainer, contentSection);
@@ -370,12 +341,7 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
 
         card.add(statusHeader, mainContent);
 
-        // Add click listener to detail button
-        detailButton.addClickListener(e -> {
-            Notification.show("Detail " + title + " - " + count + " soal", 2000, TOP_CENTER);
-        });
-
-        // Add hover effect
+        // Add hover effects
         card.getElement().addEventListener("mouseenter", event -> {
             card.getStyle().set("transform", "translateY(-1px)");
             card.getStyle().set("box-shadow", "0 4px 8px rgba(0,0,0,0.15)");
@@ -387,5 +353,102 @@ public class ResultDetailView extends VerticalLayout implements BeforeEnterObser
         });
 
         return card;
+    }
+
+    private Button createInfoButton(VaadinIcon iconType, String text) {
+        Button button = new Button();
+        button.getStyle().set("background", "transparent");
+        button.getStyle().set("border", "1px solid #e0e0e0");
+        button.getStyle().set("border-radius", "6px");
+        button.getStyle().set("padding", "6px 10px");
+        button.getStyle().set("color", "#666");
+        button.getStyle().set("font-size", "12px");
+        button.getStyle().set("cursor", "default");
+
+        Icon icon = new Icon(iconType);
+        icon.getStyle().set("color", "#4CAF50");
+        icon.getStyle().set("font-size", "14px");
+
+        button.setIcon(icon);
+        button.setText(text);
+
+        return button;
+    }
+
+    private Button createDetailButton() {
+        Button button = new Button();
+        button.getStyle().set("background", "transparent");
+        button.getStyle().set("border", "1px solid #e0e0e0");
+        button.getStyle().set("border-radius", "6px");
+        button.getStyle().set("padding", "6px 10px");
+        button.getStyle().set("color", "#333");
+        button.getStyle().set("font-size", "12px");
+        button.getStyle().set("cursor", "pointer");
+        button.getStyle().set("font-weight", "500");
+
+        HorizontalLayout buttonContent = new HorizontalLayout();
+        buttonContent.setPadding(false);
+        buttonContent.setMargin(false);
+        buttonContent.setSpacing(false);
+        buttonContent.setAlignItems(Alignment.CENTER);
+        buttonContent.getStyle().set("gap", "4px");
+
+        Div detailText = new Div();
+        detailText.setText("Detail");
+
+        HorizontalLayout arrowGroup = new HorizontalLayout();
+        arrowGroup.setPadding(false);
+        arrowGroup.setMargin(false);
+        arrowGroup.setSpacing(false);
+        arrowGroup.getStyle().set("gap", "1px");
+
+        for (int i = 0; i < 3; i++) {
+            Icon arrow = new Icon(VaadinIcon.ANGLE_RIGHT);
+            arrow.getStyle().set("color", "#4CAF50");
+            arrow.getStyle().set("font-size", "14px");
+            arrowGroup.add(arrow);
+        }
+
+        buttonContent.add(detailText, arrowGroup);
+        button.getElement().removeAllChildren();
+        button.getElement().appendChild(buttonContent.getElement());
+
+        return button;
+    }
+
+    private String formatDisplayDate(String dbDate) {
+        if (dbDate == null) return "N/A";
+
+        try {
+            if (dbDate.length() >= 10) {
+                String datePart = dbDate.substring(0, 10);
+                String[] parts = datePart.split("-");
+                if (parts.length == 3) {
+                    return parts[2] + "/" + parts[1] + "/" + parts[0];
+                }
+            }
+            return dbDate;
+        } catch (Exception e) {
+            return dbDate;
+        }
+    }
+
+    private String calculateTimeFromSeconds(String waktuPengerjaan) {
+        if (waktuPengerjaan == null) return "N/A";
+
+        try {
+            int totalSeconds = Integer.parseInt(waktuPengerjaan);
+            int hours = totalSeconds / 3600;
+            int minutes = (totalSeconds % 3600) / 60;
+            int seconds = totalSeconds % 60;
+
+            if (hours > 0) {
+                return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+            } else {
+                return String.format("%02d:%02d", minutes, seconds);
+            }
+        } catch (NumberFormatException e) {
+            return waktuPengerjaan;
+        }
     }
 }

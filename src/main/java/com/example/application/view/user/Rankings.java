@@ -2,12 +2,10 @@ package com.example.application.view.user;
 
 import com.example.application.components.Header;
 import com.example.application.components.SidebarUser;
+import com.example.application.dao.UsersDAO;
 import com.example.application.model.UsersModel;
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.H2;
-import com.vaadin.flow.component.html.H3;
-import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
@@ -21,13 +19,22 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
 
+import java.sql.SQLException;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import static com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER;
 
 @Route("rankings")
 @PageTitle("Rankings")
 public class Rankings extends VerticalLayout implements BeforeEnterObserver {
 
-    public Rankings() {}
+    private UsersDAO usersDAO;
+    private List<UsersModel> topUsers;
+
+    public Rankings() {
+        this.usersDAO = new UsersDAO();
+    }
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
@@ -36,8 +43,21 @@ public class Rankings extends VerticalLayout implements BeforeEnterObserver {
             event.forwardTo("login");
             Notification.show("Kamu Harus Login Terlebih dahulu!", 2000, TOP_CENTER);
         } else {
-            buildLayout();
+            try {
+                loadRankingData();
+                buildLayout();
+            } catch (SQLException e) {
+                Notification.show("Error loading ranking data: " + e.getMessage(), 3000, TOP_CENTER);
+                e.printStackTrace();
+            }
         }
+    }
+
+    private void loadRankingData() throws SQLException {
+        topUsers = usersDAO.getUsersByRoleAndStatus("user", "Diterima")
+                .stream()
+                .sorted((u1, u2) -> Integer.compare(u2.getPoint(), u1.getPoint()))
+                .collect(Collectors.toList());
     }
 
     private void buildLayout() {
@@ -81,7 +101,6 @@ public class Rankings extends VerticalLayout implements BeforeEnterObserver {
                 .set("overflow-y", "auto")
                 .set("padding", "20px");
 
-        // Container untuk semua konten
         VerticalLayout container = new VerticalLayout();
         container.setWidth("100%");
         container.setMaxWidth("1200px");
@@ -89,22 +108,25 @@ public class Rankings extends VerticalLayout implements BeforeEnterObserver {
         container.setPadding(false);
         container.setSpacing(true);
 
-        // Title
-        H2 title = new H2("Leaderboard");
-        title.getStyle()
-                .set("margin", "0 0 30px 0")
-                .set("color", "#2D5A2D")
-                .set("text-align", "center");
+        if (topUsers.size() >= 3) {
+            HorizontalLayout topThreeLayout = createTopThreeLayout();
+            container.add(topThreeLayout);
 
-        // Top 3 Users Section
-        HorizontalLayout topThreeLayout = createTopThreeLayout();
+            if (topUsers.size() > 3) {
+                Component rankingTable = createRankingTable();
+                container.add(rankingTable);
+            }
+        } else {
+            H3 subtitle = new H3("Tidak cukup pengguna untuk menampilkan top 3");
+            subtitle.getStyle()
+                    .set("text-align", "center")
+                    .set("color", "#666");
 
-        // Ranking Table Section
-        Component rankingTable = createRankingTable();
+            Component rankingTable = createRankingTableAll();
+            container.add(subtitle, rankingTable);
+        }
 
-        container.add(title, topThreeLayout, rankingTable);
         content.add(container);
-
         return content;
     }
 
@@ -117,21 +139,70 @@ public class Rankings extends VerticalLayout implements BeforeEnterObserver {
                 .set("margin-bottom", "40px")
                 .set("gap", "20px");
 
-        // 3rd Place (Left)
-        VerticalLayout thirdPlace = createRankCard("Brimob", 700, 3, "#CD7F32", "👤", false);
+        UsersModel firstPlace = topUsers.get(0);
+        UsersModel secondPlace = topUsers.size() > 1 ? topUsers.get(1) : null;
+        UsersModel thirdPlace = topUsers.size() > 2 ? topUsers.get(2) : null;
 
-        // 1st Place (Center - Taller)
-        VerticalLayout firstPlace = createRankCard("Fahrur", 1000, 1, "#FFD700", "🎒", true);
+        if (thirdPlace != null) {
+            VerticalLayout thirdCard = createRankCard(
+                    thirdPlace.getUsername(),
+                    thirdPlace.getPoint(),
+                    3,
+                    "#CD7F32",
+                    getAvatarForUser(thirdPlace),
+                    false
+            );
+            topThree.add(thirdCard);
+        }
 
-        // 2nd Place (Right)
-        VerticalLayout secondPlace = createRankCard("Daud", 800, 2, "#C0C0C0", "👤", false);
+        VerticalLayout firstCard = createRankCard(
+                firstPlace.getUsername(),
+                firstPlace.getPoint(),
+                1,
+                "#FFD700",
+                getAvatarForUser(firstPlace),
+                true
+        );
+        topThree.add(firstCard);
 
-        topThree.add(thirdPlace, firstPlace, secondPlace);
+        if (secondPlace != null) {
+            VerticalLayout secondCard = createRankCard(
+                    secondPlace.getUsername(),
+                    secondPlace.getPoint(),
+                    2,
+                    "#C0C0C0",
+                    getAvatarForUser(secondPlace),
+                    false
+            );
+            topThree.add(secondCard);
+        }
 
         return topThree;
     }
 
-    private VerticalLayout createRankCard(String username, int points, int rank, String medalColor, String avatarEmoji, boolean isFirst) {
+    private Image getAvatarForUser(UsersModel user) {
+        Image userImage = new Image();
+        if (user != null && user.getFoto() != null && !user.getFoto().isEmpty()) {
+            userImage.setSrc(user.getFoto());
+            userImage.setWidth("50px");
+            userImage.setHeight("50px");
+        } else {
+            userImage.setSrc("images/usericon.png");
+            userImage.setWidth("50px");
+            userImage.setHeight("50px");
+        }
+
+        userImage.getStyle()
+                .set("border-radius", "50%")
+                .set("object-fit", "cover");
+
+        return userImage;
+    }
+
+    private VerticalLayout createRankCard(
+            String username, int points, int rank, String medalColor,
+            Image avatarProfile, boolean isFirst
+    ) {
         VerticalLayout card = new VerticalLayout();
         card.setWidth("180px");
         if (isFirst) {
@@ -170,17 +241,12 @@ public class Rankings extends VerticalLayout implements BeforeEnterObserver {
                 .set("z-index", "10");
 
         // Avatar
-        Div avatar = new Div();
-        avatar.setText(avatarEmoji);
+        Image avatar = avatarProfile;
         avatar.getStyle()
                 .set("width", isFirst ? "90px" : "70px")
                 .set("height", isFirst ? "90px" : "70px")
                 .set("border-radius", "50%")
                 .set("background-color", "#F0F0F0")
-                .set("display", "flex")
-                .set("align-items", "center")
-                .set("justify-content", "center")
-                .set("font-size", isFirst ? "45px" : "35px")
                 .set("margin", "25px 0 15px 0");
 
         // Username
@@ -230,6 +296,73 @@ public class Rankings extends VerticalLayout implements BeforeEnterObserver {
                 .set("overflow", "hidden");
 
         // Table Header
+        HorizontalLayout header = createTableHeader();
+
+        // Table Body
+        VerticalLayout tableBody = new VerticalLayout();
+        tableBody.setSpacing(false);
+        tableBody.setPadding(false);
+        tableBody.setWidthFull();
+
+        // Add users from rank 4 onwards
+        for (int i = 3; i < topUsers.size(); i++) {
+            UsersModel user = topUsers.get(i);
+            boolean isLast = (i == topUsers.size() - 1);
+            HorizontalLayout tableRow = createTableRow(
+                    String.format("%02d", i + 1),
+                    getAvatarForUser(user),
+                    user.getUsername(),
+                    String.valueOf(user.getPoint()),
+                    isLast
+            );
+            tableBody.add(tableRow);
+        }
+
+        tableContainer.add(header, tableBody);
+        return tableContainer;
+    }
+
+    private Component createRankingTableAll() {
+        VerticalLayout tableContainer = new VerticalLayout();
+        tableContainer.setWidth("100%");
+        tableContainer.setMaxWidth("800px");
+        tableContainer.setPadding(false);
+        tableContainer.setSpacing(false);
+        tableContainer.getStyle()
+                .set("background-color", "white")
+                .set("border-radius", "15px")
+                .set("box-shadow", "0 2px 8px rgba(0,0,0,0.1)")
+                .set("margin", "0 auto")
+                .set("overflow", "hidden");
+
+        // Table Header
+        HorizontalLayout header = createTableHeader();
+
+        // Table Body
+        VerticalLayout tableBody = new VerticalLayout();
+        tableBody.setSpacing(false);
+        tableBody.setPadding(false);
+        tableBody.setWidthFull();
+
+        // Add all users
+        for (int i = 0; i < topUsers.size(); i++) {
+            UsersModel user = topUsers.get(i);
+            boolean isLast = (i == topUsers.size() - 1);
+            HorizontalLayout tableRow = createTableRow(
+                    String.format("%02d", i + 1),
+                    getAvatarForUser(user),
+                    user.getUsername(),
+                    String.valueOf(user.getPoint()),
+                    isLast
+            );
+            tableBody.add(tableRow);
+        }
+
+        tableContainer.add(header, tableBody);
+        return tableContainer;
+    }
+
+    private HorizontalLayout createTableHeader() {
         HorizontalLayout header = new HorizontalLayout();
         header.setWidthFull();
         header.getStyle()
@@ -258,33 +391,12 @@ public class Rankings extends VerticalLayout implements BeforeEnterObserver {
                 .set("color", "#666");
 
         header.add(rankHeader, usernameHeader, pointHeader);
-
-        // Table Body
-        VerticalLayout tableBody = new VerticalLayout();
-        tableBody.setSpacing(false);
-        tableBody.setPadding(false);
-        tableBody.setWidthFull();
-
-        // Sample data for ranks 4-7
-        String[][] rankData = {
-                {"04", "👤", "Udi", "655"},
-                {"05", "🔴", "Bokur", "650"},
-                {"06", "👤", "Cipto", "555"},
-                {"07", "🌐", "Murfiq", "400"}
-        };
-
-        for (int i = 0; i < rankData.length; i++) {
-            String[] row = rankData[i];
-            HorizontalLayout tableRow = createTableRow(row[0], row[1], row[2], row[3], i == rankData.length - 1);
-            tableBody.add(tableRow);
-        }
-
-        tableContainer.add(header, tableBody);
-
-        return tableContainer;
+        return header;
     }
 
-    private HorizontalLayout createTableRow(String rank, String avatarEmoji, String username, String points, boolean isLast) {
+    private HorizontalLayout createTableRow(
+            String rank, Image avatarProfile, String username, String points, boolean isLast
+    ) {
         HorizontalLayout row = new HorizontalLayout();
         row.setWidthFull();
         row.setAlignItems(FlexComponent.Alignment.CENTER);
@@ -311,17 +423,12 @@ public class Rankings extends VerticalLayout implements BeforeEnterObserver {
                 .set("flex", "1")
                 .set("gap", "12px");
 
-        Div avatar = new Div();
-        avatar.setText(avatarEmoji);
+        Image avatar = avatarProfile;
         avatar.getStyle()
                 .set("width", "35px")
                 .set("height", "35px")
                 .set("border-radius", "50%")
-                .set("background-color", "#F5F5F5")
-                .set("display", "flex")
-                .set("align-items", "center")
-                .set("justify-content", "center")
-                .set("font-size", "18px");
+                .set("background-color", "#F5F5F5");
 
         Span usernameSpan = new Span(username);
         usernameSpan.getStyle()

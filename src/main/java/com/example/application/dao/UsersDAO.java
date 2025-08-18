@@ -21,31 +21,6 @@ public class UsersDAO {
         listUsers = new ArrayList<>();
     }
 
-    public UsersModel getUserByEmail(String email) throws SQLException {
-        String sql = "SELECT * FROM users WHERE email = ?";
-        PreparedStatement ps = conn.prepareStatement(sql);
-        ps.setString(1, email);
-        ResultSet rs = ps.executeQuery();
-
-        UsersModel user = null;
-        if (rs.next()) {
-            user = new UsersModel();
-            user.setIdUsers(rs.getInt("id_users"));
-            user.setEmail(rs.getString("email"));
-            user.setPassword(rs.getString("password"));
-            user.setUsername(rs.getString("username"));
-            user.setRole(rs.getString("role"));
-            user.setStatus(rs.getString("status"));
-            user.setLevel(rs.getInt("level"));
-            user.setLevel(rs.getInt("point"));
-            user.setFoto(rs.getString("foto"));
-        }
-
-        rs.close();
-        ps.close();
-        return user;
-    }
-
     public boolean checkEmail(String email) throws SQLException {
         String sql = "SELECT 1 FROM users WHERE email = ?";
         PreparedStatement ps = conn.prepareStatement(sql);
@@ -57,6 +32,7 @@ public class UsersDAO {
         return available;
     }
 
+    // FIXED: Tambahkan level dan point pada method login
     public UsersModel login(String email, String password) throws SQLException {
         Connection conn = getConnection();
         String sql = "SELECT * FROM users WHERE email = ? AND password = ?";
@@ -73,7 +49,10 @@ public class UsersDAO {
             user.setUsername(rs.getString("username"));
             user.setRole(rs.getString("role"));
             user.setStatus(rs.getString("status"));
+            user.setLevel(rs.getInt("level"));  // TAMBAHKAN INI
+            user.setPoint(rs.getInt("point"));  // TAMBAHKAN INI
             user.setFoto(rs.getString("foto"));
+
             return user;
         }
 
@@ -96,7 +75,7 @@ public class UsersDAO {
         rsMaxId.close();
         psMaxId.close();
 
-        String sql = "INSERT INTO users (id_users, email, password, username, role, status) VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO users (id_users, email, password, username, role, status, level, point) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         PreparedStatement psInsert = conn.prepareStatement(sql);
         psInsert.setInt(1, id);
         psInsert.setString(2, users.getEmail());
@@ -104,6 +83,8 @@ public class UsersDAO {
         psInsert.setString(4, users.getUsername());
         psInsert.setString(5, users.getRole() != null ? users.getRole() : "user");
         psInsert.setString(6, users.getStatus() != null ? users.getStatus() : "Tidak Diterima");
+        psInsert.setInt(7, users.getLevel() > 0 ? users.getLevel() : 1);
+        psInsert.setInt(8, Math.max(users.getPoint(), 0));
 
         psInsert.executeUpdate();
         psInsert.close();
@@ -126,6 +107,31 @@ public class UsersDAO {
         }
     }
 
+    public UsersModel getUserById(int userId) throws SQLException {
+        String sql = "SELECT * FROM users WHERE id_users = ?";
+        PreparedStatement ps = conn.prepareStatement(sql);
+        ps.setInt(1, userId);
+        ResultSet rs = ps.executeQuery();
+
+        UsersModel user = null;
+        if (rs.next()) {
+            user = new UsersModel();
+            user.setIdUsers(rs.getInt("id_users"));
+            user.setEmail(rs.getString("email"));
+            user.setPassword(rs.getString("password"));
+            user.setUsername(rs.getString("username"));
+            user.setRole(rs.getString("role"));
+            user.setStatus(rs.getString("status"));
+            user.setLevel(rs.getInt("level"));
+            user.setPoint(rs.getInt("point"));
+            user.setFoto(rs.getString("foto"));
+        }
+
+        rs.close();
+        ps.close();
+        return user;
+    }
+
     // New methods for user management
     public List<UsersModel> getUsersByRoleAndStatus(String role, String status) throws SQLException {
         List<UsersModel> users = new ArrayList<>();
@@ -144,31 +150,8 @@ public class UsersDAO {
                     user.setUsername(rs.getString("username"));
                     user.setRole(rs.getString("role"));
                     user.setStatus(rs.getString("status"));
-                    user.setFoto(rs.getString("foto"));
-                    users.add(user);
-                }
-            }
-        }
-
-        return users;
-    }
-
-    public List<UsersModel> getAllUsersByRole(String role) throws SQLException {
-        List<UsersModel> users = new ArrayList<>();
-        String sql = "SELECT * FROM users WHERE role = ? ORDER BY username";
-
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, role);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    UsersModel user = new UsersModel();
-                    user.setIdUsers(rs.getInt("id_users"));
-                    user.setEmail(rs.getString("email"));
-                    user.setPassword(rs.getString("password"));
-                    user.setUsername(rs.getString("username"));
-                    user.setRole(rs.getString("role"));
-                    user.setStatus(rs.getString("status"));
+                    user.setLevel(rs.getInt("level"));  // TAMBAHKAN INI
+                    user.setPoint(rs.getInt("point"));  // TAMBAHKAN INI
                     user.setFoto(rs.getString("foto"));
                     users.add(user);
                 }
@@ -192,46 +175,6 @@ public class UsersDAO {
 
             System.out.println("User status updated successfully for ID: " + userId + " to status: " + status);
         }
-    }
-
-    public UsersModel getUserById(int userId) throws SQLException {
-        String sql = "SELECT * FROM users WHERE id_users = ?";
-
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, userId);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    UsersModel user = new UsersModel();
-                    user.setIdUsers(rs.getInt("id_users"));
-                    user.setEmail(rs.getString("email"));
-                    user.setPassword(rs.getString("password"));
-                    user.setUsername(rs.getString("username"));
-                    user.setRole(rs.getString("role"));
-                    user.setStatus(rs.getString("status"));
-                    user.setFoto(rs.getString("foto"));
-                    return user;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    public int getUserCountByStatus(String status) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM users WHERE status = ? AND role = 'user'";
-
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, status);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1);
-                }
-            }
-        }
-
-        return 0;
     }
 
     public void deleteUser(int userId) throws SQLException {
