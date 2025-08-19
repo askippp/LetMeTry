@@ -25,11 +25,15 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.example.application.connection.Koneksi.getConnection;
 import static com.vaadin.flow.component.notification.Notification.Position.MIDDLE;
 import static com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER;
 
@@ -327,7 +331,14 @@ public class LatsolInd11 extends VerticalLayout implements BeforeEnterObserver {
                     .setBoxShadow("0 4px 8px rgba(17, 139, 80, 0.3)");
 
             submitButton.addClickListener(e -> {
-                Notification.show("Latihan soal selesai", 2000, Notification.Position.TOP_CENTER);
+                try {
+                    new LatihanSoalDAO().updateNilaiLatihan(idLatsol);
+                    double nilaiAkhir = getNilaiAkhir();
+                    Notification.show("Latihan selesai! Nilai Anda: " + nilaiAkhir, 3000, MIDDLE);
+                    UI.getCurrent().navigate("materi-ind-11");
+                } catch (SQLException exception) {
+                    exception.printStackTrace();
+                }
             });
 
             rightContainer.add(submitButton);
@@ -336,6 +347,20 @@ public class LatsolInd11 extends VerticalLayout implements BeforeEnterObserver {
         contentLayout.add(leftContainer, rightContainer);
         mainContainer.add(contentLayout);
         mainContent.add(mainContainer);
+    }
+
+    private double getNilaiAkhir() throws SQLException {
+        Connection conn = getConnection();
+        String sql = "SELECT nilai FROM latihan_soal WHERE id_latsol = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, idLatsol);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDouble("nilai");
+                }
+            }
+        }
+        return 0;
     }
 
     private int getTotalQuestions() {
